@@ -1,0 +1,316 @@
+      program singleobs2little_r
+
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c Author  : Valerio Capecchi <capecchi@lamma.rete.toscana.it>
+c Date    : 2013-05-13
+c UpDate  : 2015-03-17
+c Purpose : Convert csv files (comma separated value) into 
+c           lttle_r format observation data files
+c Comments: Modified from the original NCAR code upa.f available at
+c           ftp://ftp.ucar.edu/mesouser/MM5V3/V3-7-0/LITTLE_R.TAR.gz
+c           or
+c           http://www2.mmm.ucar.edu/mm5/On-Line-Tutorial/little_r/extras/upa.f
+c
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+c     ... this is a little testing routine that is supposed to generate a 
+c         single sounding that the objective analysis program will ingest
+
+c     ... pressure is in Pa, height in m, temperature and dew point are in
+c         K, speed is in m/s, and direction is in degrees
+
+c     ... sea level pressure is in Pa, terrain elevation is in m, latitude
+c         is in degrees N, longitude is in degrees E
+
+c     ... to put in a surface observation, make only a single level "sounding"
+c         and make the value of the height equal the terrain elevation -- PRESTO!
+
+c     ... the first 40 character string may be used for the description of
+c         the station (i.e. name city country, etc)
+
+c     ... the second character string we use for our source
+
+c     ... the third string should be left alone, it uses the phrase "FM-35 TEMP"
+c         for an upper air station, and should use "FM-12 SYNOP" for surface data
+
+c     ... the fourth string is unused, feel free to experiment with labels!
+
+c     ... bogus data are not subject to quality control
+
+c     ... There are 3 records for each observation site:
+c     1. a header that contains information about station identifier, 
+c        station location, data information, station elevation
+c        and whether the report is a bogus or not, etc;
+c     2. a report (whether it is a sounding containing many levels, or only a surface report)
+c     3. an end-of-message line.
+
+c     ... For a surface observation, the geopotential height (z(k)) 
+c         must be set equal to the terrain elevation (ter) field.
+c         This is the definition of a surface observation. 
+
+      parameter (kx=VAL_K)
+      parameter (gravity=9.8066)
+      parameter (Fmolarmass=0.028964)
+      parameter (universalR=8.3143)
+      parameter (standardT=288.15)
+      dimension p(kx), z(kx), t(kx), td(kx), spd(kx), dir(kx)
+      dimension u(kx), v(kx), rh(kx), thick(kx), es(kx)
+      logical bogus
+      logical is_sounding
+      logical discard
+
+      data t  /    VAL_TMP/
+      data spd/    VAL_SPD/
+      data dir/    VAL_DIR/
+      data p  /    VAL_P/
+      data u  /    VAL_U/
+      data v  /    VAL_V/
+      data rh /    VAL_RH/
+      data thick /    VAL_THICK/
+      
+c     ... The following two parameters need to be the same (see the previous note above))
+      data ter/VAL_TER/
+      data z  /VAL_Z/
+c     ... User-defined...mdate should be in the form 11102506
+      data xlat/TMPL_LAT/
+      data xlon/TMPL_LON/
+      data mdate /VAL_MDATE/
+c     ... bogus data are not subject to quality control
+      data bogus /.false./
+      data is_sounding /.false./
+      data discard /.false./
+c     ... iseq_num Sequence number of this observation
+      iseq_num=0
+
+      do 100 k=1,kx
+         if ( dir(k) < 0. .OR. dir(k) > 360. ) then
+           dir(k)=-888888.
+         end if
+         if ( p(k) > 600. ) then
+           p(k)=p(k)*100.
+         else
+           p(k)=-888888.
+         end if
+c     ... The following parameter can be derived from the above ones
+         if ( t(k) > -60. .AND. rh(k) .ge. 0.0 .AND. rh(k) .le. 100. )
+     &   then
+c     ... http://www.srh.noaa.gov/images/epz/wxcalc/wetBulbTdFromRh.pdf  (Calcolo di T dewpoint)
+c     ... http://www.srh.noaa.gov/images/epz/wxcalc/vaporPressure.pdf (Calcolo pressione di vapor saturo, ES)
+           es(k)=6.11*10**((7.5*t(k))/(237.3+t(k)))
+           td(k)=(237.3*log(es(k)*rh(k)/611))/
+     &           (7.5*log(10.0)-log(es(k)*rh(k)/611))
+c     ... http://andrew.rsmas.miami.edu/bmcnoldy/Humidity.html
+c     ... Alduchov, O. A., and R. E. Eskridge, 1996: 
+c     ... Improved Magnus' form approximation of saturation vapor pressure. 
+c     ... J. Appl. Meteor., 35, 601–609. 
+c            td(k)=243.04*(log(rh(k)/100)+((17.625*t(k))/(243.04+t(k))))/
+c     &            (17.625-log(rh(k)/100)-((17.625*t(k))/(243.04+t(k))))
+           if ( td(k) > -60. ) then
+             td(k)=td(k)+273.15
+           else
+             td(k)=-888888.
+           end if         
+         else
+           td(k)=-888888.
+         end if
+         if ( t(k) > -60. ) then
+           t(k)=t(k)+273.15
+         else
+           t(k)=-888888.
+         end if
+100   continue
+
+c     ... The following parameter can be derived from the above ones
+      if ( p(1)> 600. ) then
+        slp=p(1)/exp(-(gravity*Fmolarmass*ter)/(universalR*standardT))
+      else
+        slp=-888888.
+      end if
+
+c     ... Echo some values
+c      write (*,*) gravity,Fmolarmass,ter,universalR,standardT
+c      write (*,*) 'TMPL_STR'
+c      write (*,*) 'pressure         -->',p(1)
+c      write (*,*) 'terrain elevation-->',ter
+c      write (*,*) 'slp              -->',slp
+c      write (*,*) 'z                -->',z
+c      write (*,*) 't                -->',t
+c      write (*,*) 'spd              -->',spd(1)
+c      write (*,*) 'dir              -->',dir(1)
+c      write (*,*) 'td               -->',td(1)
+c      write (*,*) 'rh               -->',rh(1)
+c      write (*,*) 'u                -->',u(1)
+c      write (*,*) 'v                -->',v(1)
+c      write (*,*) 'thick            -->',thick(1)
+c      write (*,*) '              -->',
+
+c     ... this forces the single surface observation writing
+      k=VAL_K
+
+      if ( k .eq. 1 ) then
+         call write_obs (p,z,t,td,spd,dir, 
+     &                    slp, ter, xlat, xlon, mdate, kx,
+     &         'TMPL_STR',
+     &         'SURFACE DATA FROM MY DATABASExxxxxxxxxxx',
+     &         'FM-12 SYNOPxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+     &         'I did itxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+     &         bogus , iseq_num , 2 )
+      else
+         call write_obs (p,z,t,td,spd,dir, 
+     &                    slp, ter, xlat, xlon, mdate, kx, 
+     &         '99001  Maybe more site info             ',
+     &         'SOUNDINGS FROM ????????? SOURCE         ',
+     &         'FM-35 TEMP                              ',
+     &         '                                        ',
+     &         bogus , iseq_num , 2 )
+      endif
+
+      stop 99999
+      end
+
+c     ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c     ... Subroutines below here
+c     cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+
+      SUBROUTINE write_obs ( p , z , t , td , spd , dir , 
+     &                      slp , ter , xlat , xlon , mdate , kx , 
+     & string1 , string2 , string3 , string4 , bogus , iseq_num ,
+     & iunit )
+
+      dimension p(kx), z(kx), t(kx), td(kx), spd(kx),dir(kx)
+
+      character *20 date_char
+      character *40 string1, string2 , string3 , string4
+      CHARACTER *84  ini_format 
+      CHARACTER *22  mid_format 
+      CHARACTER *14  end_format
+      logical bogus
+      logical is_sounding
+      logical discard
+      data is_sounding /.false./
+      data discard /.false./
+
+c    ... Define writing formats
+
+c    ini_format writes an header:
+ccc    two integers --> 2f20.5
+ccc                    station latitude (north positive)
+ccc                    station longitude (east positive)
+ccc    string1, string2, string3, string4 --> 2a40 & 2a40
+ccc                    string1 ID of station
+ccc                    string2 Name of station
+ccc                    string3 Description of the measurement device
+ccc                    string4 GTS, NCAR/ADP, BOGUS, etc.
+ccc    terrain elevation (m) --> 1f20.5
+ccc    five integers: kx*6, 0, 0, iseq_num, 0 --> 5i10
+ccc                    Number of valid fields in the report
+ccc                    Number of errors encountered during the decoding of this observation
+ccc                    Number of warnings encountered during decoding of this observation
+ccc                    Sequence number of this observation
+ccc                    Number of duplicates found for this observation
+ccc    three logicals: is_sounding, bogus, .false. --> 3L10
+ccc                    Multiple levels or a single level
+ccc                    bogus report or normal one
+ccc                    Duplicate and discarded (or merged) report
+ccc    two integers --> 2i10
+ccc                    Seconds since 0000 UTC 1 January 1970
+ccc                    Day of the year
+ccc    date of observation as character --> a20
+ccc                    YYYYMMDDHHmmss
+ccc    13 couples of numbers --> 13(f13.5,i7)
+ccc                    1. Sea-level pressure (Pa) and a QC flag
+ccc                    2. Reference pressure level (for thickness) (Pa) and a QC flag
+ccc                    3. Ground Temperature (T) and QC flag
+ccc                    4. Sea-Surface Temperature (K) and QC
+ccc                    5. Surface pressure (Pa) and QC
+ccc                    6. Precipitation Accumulation and QC
+ccc                    7. Daily maximum T (K) and QC
+ccc                    8. Daily minimum T (K) and QC
+ccc                    9. Overnight minimum T (K) and QC
+ccc                    10. 3-hour pressure change (Pa) and QC
+ccc                    11. 24-hour pressure change (Pa) and QC
+ccc                    12. Total cloud cover (oktas) and QC
+ccc                    13. Height (m) of cloud base and QC
+      ini_format =  ' ( 2f20.5 , 2a40 , ' 
+     &             // ' 2a40 , 1f20.5 , 5i10 , 3L10 , ' 
+     &             // ' 2i10 , a20 ,  13( f13.5 , i7 ) ) '
+
+c    mid_format writes the actual observations:
+ccc    ten floating numbers and integers --> 10( f13.5 , i7 )
+ccc       1. Pressure (Pa) of observation, and QC
+ccc       2. Height (m MSL) of observation, and QC
+ccc       3. Temperature (K) and QC
+ccc       4. Dewpoint (K) and QC
+ccc       5. Wind speed (m s-1 ) and QC
+ccc       6. Wind direction (degrees) and QC
+ccc       7. U component of wind (m s-1 ), and QC
+ccc       8. V component of wind (m s-1 ), and QC
+ccc       9. Relative Humidity (%) and QC
+ccc      10. Thickness (m), and QC
+      mid_format =  ' ( 10( f13.5 , i7 ) ) '
+
+c    end_format writes the tail of the little_r file
+ccc    three integers --> 3 ( i7 )
+ccc      Number of valid fields in the report
+ccc      Number of errors encountered during the decoding of the report
+ccc      Number of warnings encountered during the decoding the report
+      end_format = ' ( 3 ( i7 ) ) ' 
+c    ... End of writing formats
+
+c     ... Init of date_char
+      date_char(1:6)='      '
+      if (mdate/1000000 .GT. 70 ) then
+         date_char(7:8)='19'
+      else
+         date_char(7:8)='20'
+      endif
+      write (date_char(9:16),fmt='(i8.8)') mdate
+c     ****************************************
+c      date_char(17:20)='0000'
+      date_char(17:18)='VAL_MDATE_MINS'
+      date_char(19:20)='00'
+c      write (*,*) 'date_char        -->',date_char
+c     ****************************************
+c    ... End of date_char
+
+c    ... Write ini format (known as header-format)
+      WRITE ( UNIT = iunit , ERR = 19 , FMT = ini_format ) 
+     &        xlat, xlon, 
+     &        string1, string2,  string3, string4,
+     &        ter, 
+c     &        kx, 0, 0, iseq_num, 0, 
+     &        kx*6, 0, 0, 0, 0, 
+     &        is_sounding, bogus, discard, 
+     &        -888888, -888888,
+     &        date_char, 
+     &        slp, 0,
+     &          -888888.,0,-888888.,0,-888888.,0,p(1),0, 
+     &          -888888.,0,-888888.,0,-888888.,0,-888888.,0,
+     &          -888888.,0,-888888.,0,-888888.,0,-888888.,0
+     
+c    ... Write mid format (known as data-records)
+      do 100 k = 1 , kx
+         WRITE ( UNIT = iunit , ERR = 19 , FMT = mid_format ) 
+     &          p(k), 0, z(k),0, t(k),0, td(k),0, 
+     &          spd(k),0, dir(k),0, 
+     &          -888888.,0, -888888.,0,
+     &          -888888.,0, -888888.,0
+100   continue
+
+c    ... Again write mid format (known as end-data-record)
+      WRITE ( UNIT = iunit , ERR = 19 , FMT = mid_format ) 
+     & -777777.,0, -777777.,0, float(kx),0,
+     & -888888.,0, -888888.,0, -888888.,0, 
+     & -888888.,0, -888888.,0, -888888.,0, 
+     & -888888.,0
+
+c    ... Write end format
+      WRITE ( UNIT = iunit , ERR = 19 , FMT = end_format )  kx, 0, 0
+
+      return
+19    continue
+      print *,'troubles writing little_r observation'
+      stop 19
+      END
+

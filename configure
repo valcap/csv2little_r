@@ -1,0 +1,69 @@
+#!/bin/bash
+
+arg=$1
+
+# check input argument
+if test -z "$1" ; then
+  echo "usage: ./$0 path/to/where/you/want/working/directory"
+  exit 1;
+fi
+
+# check os
+os=`uname`
+if [ "$os" != "Linux" ]; then
+  echo "opss this is not designed for not-Linux machines. Bye";
+  exit 1;
+fi
+
+# check Fortran compiler
+fc_comp=`cat env/csv2little_r.env.tmpl | grep FC | cut -d'=' -f2`
+resp=`which $fc_comp`
+if [ $? = 0 ]; then
+  echo "fortran compiler is $fc_comp"  
+else
+  echo "opss cannot find fortran compiler $fc_comp"; exit;
+fi
+
+# check installing directory
+echo 'Installing directory is '$arg'. Okay to proceed? [y/n]'
+read resp
+if [ "$resp" != "y" ]; then
+  echo "exit"; exit 1;
+elif [ ! -d "$arg" ]; then
+  echo "$arg is missing. Do you want to create it? [y/n]"
+  read resp
+  if [ "$resp" = "y" ]; then
+    mkdir -p $arg
+  fi
+fi
+
+# installing stuff
+echo "Installing stuff in $arg/"
+CP=`which cp`
+if [ $? = 0 ]; then
+  $CP -r src $arg/
+else
+  echo "opss cannota find cp command"; exit;
+fi
+MKDIR=`which mkdir`
+if [ $? = 0 ]; then
+  ${MKDIR} -p $arg/data
+  ${MKDIR} -p $arg/wrkg
+  ${MKDIR} -p $arg/log
+  ${MKDIR} -p $arg/env
+else
+  echo "opss cannota find mkdir command"; exit;
+fi
+CAT=`which cat`
+[ $? = 0 ] || exit 1;
+SED=`which sed`
+[ $? = 0 ] || exit 1;
+${CAT} env/csv2little_r.env.tmpl | ${SED} -e "s!ROOTTOBEDET!${arg}!g" > $arg/env/test.env
+
+echo ""
+echo "done!"
+echo "first of all edit $arg/env/test.env!"
+echo "then run sh $arg/src/csv2little_r.sh INPUTFILE VARIABLE"
+echo "and cross fingers"
+echo "enjoy!"
+

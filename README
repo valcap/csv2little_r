@@ -1,0 +1,67 @@
+# csv2little_r
+
+DESCRIPTION:
+This procedure is designed to convert csv data file format into LITTLE_R
+that WRFDA will ingest.
+From WRFDA Tutorial:
+'LITTLE_R is an ASCII-based observation file format, in use since the MM5 era. 
+Because raw observation data files have many possible formats (such as ASCII, 
+BUFR, PREPBUFR, MADIS, and HDF) LITTLE_R is designed to be an intermediate 
+format so that WRFDA might be able to assimilate as many observation types as 
+possible in a universal manner. It is a report-based file format, so all 
+manner of observation types can easily be "cat-ted" together into an 
+easy-to-read and -edit text file.'
+Input file is supposed to be like this:
+Chieti;14.181;42.377;20111025_0630;139
+Teramo;13.711;42.656;20111025_0530;207
+L_Aquila;13.432;42.339;20111025_0530;180
+i.e.
+NAME;LON;LAT;YYYYMMDD_hhmm;VARIABLE_VALUE
+where variable can be one of the following:
+WIND SPEED (SPD)
+WIND DIRECTION (DIR)
+TEMPERATURE (TMP)
+PRESSURE (BAR)
+RELATIVE HUMIDITY (IGR)
+ZONAL WIND (UWND)
+MERIDIONAL WIND (VWND)
+THICKNESS (THICK)
+where
+pressure is in Pa
+temperature is in K
+wind speed is in m/s
+wind direction is in degrees
+relative humidity is in %
+zonal and meridional wind are in m/s (actually they were not tested)
+thickness is in m (actually it was not tested)
+
+SYSTEM REQUIREMENTS:
+* Linux system
+* /bin/bash
+* a Fortran compiler (gfortran worked for me..no other compilers were tested..)
+
+INSTALL:
+* tar/unzip the source code
+* cd csv2little_r
+* you have the following dir/files:
+  - configure: - checks for system features and copies files and directories to the working directoy
+  - env: contains configuration parameters for the procedure
+  - src: contains a Bash procedure and the fortran
+* run ./configure /path/to/where/you/want/working/directory
+
+RUN:
+* cd env
+* edit the 'test.env' file according to your needs (if any). The file has minimal comments, if your are in doubts write me at valcap74@gmail.com
+* cd ../srs
+* sh csv2little_r.sh INPUTFILE_with_PATH SPD|DIR|TMP|BAR|IGR|UWND|VWND|THICK
+  example:
+  sh csv2little_r.sh ../data/sample.file.wind WND
+  
+TODO:
+this is a very first attempt so a lot of stuff to improve the procedure is needed.
+Nevertheless the procedure works in most cases.
+Feel free to contribute
+
+MAINTAINER(S):
+valcap valcap74@gmail.com
+
