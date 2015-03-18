@@ -2,7 +2,7 @@
 
 DESCRIPTION:
 This procedure is designed to convert csv data file format into LITTLE_R
-that WRFDA will ingest.
+that WRFDA will ingest (http://www2.mmm.ucar.edu/wrf/users/wrfda/).
 From WRFDA Tutorial:
 'LITTLE_R is an ASCII-based observation file format, in use since the MM5 era. 
 Because raw observation data files have many possible formats (such as ASCII, 
