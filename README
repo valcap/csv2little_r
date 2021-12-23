@@ -27,7 +27,7 @@ ZONAL WIND (UWND)
 MERIDIONAL WIND (VWND)
 THICKNESS (THICK)
 where
-pressure is in Pa
+pressure is in hPa
 temperature is in K
 wind speed is in m/s
 wind direction is in degrees
